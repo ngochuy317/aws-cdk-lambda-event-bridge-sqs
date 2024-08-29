@@ -50,11 +50,11 @@ def test_get_current_timezone():
     assert controller_lambda.get_current_timezone("MyQueueXYZ") == "America/New_York"
 
 
-@patch('app.cdk.aws_lambda.controller_lambda.pytz.timezone')
+@patch('app.cdk.aws_lambda.controller_lambda.ZoneInfo')
 @patch('app.cdk.aws_lambda.controller_lambda.datetime')
-def test_get_current_time(mock_datetime, mock_pytz_timezone):
+def test_get_current_time(mock_datetime, mock_zoneInfo):
     mock_datetime.now.return_value = datetime(2023, 1, 1, 12, 0, 0)
-    mock_pytz_timezone.return_value = "America/Los_Angeles"
+    mock_zoneInfo.return_value = "America/Los_Angeles"
     assert controller_lambda.get_current_time("America/Los_Angeles") == datetime(2023, 1, 1, 12, 0, 0)
 
 
