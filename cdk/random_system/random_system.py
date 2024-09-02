@@ -39,12 +39,12 @@ class RandomSystemStack(Stack):
             enable_data_api=True
         )
 
-        self.history_processor_lambda = _lambda.Function(
+        self.ods_history_processor_lambda = _lambda.Function(
             self,
             self.execution_context.aws_lambda.create_resource_id(f"{self.module_name()}-history-processor"),
             function_name=self.execution_context.aws_lambda.create_resource_name(f"{self.module_name()}-history-processor"),
             code=self.execution_context.aws_lambda.get_local_code(self.code_location()),
-            handler="random_system.history_processor_lambda.lambda_handler",
+            handler="random_system.ods_history_processor_lambda.lambda_handler",
             environment={
                 ENV_RANDOM_SYSTEM_DB_CLUSTER_ARN: self.cluster.cluster_arn,
                 ENV_RANDOM_SYSTEM_DB_SECRET_ARN: self.cluster.secret.secret_arn,
@@ -55,15 +55,15 @@ class RandomSystemStack(Stack):
             vpc=self.vpc,
         )
 
-        self.cluster.secret.grant_read(self.history_processor_lambda)
-        self.history_processor_lambda.add_to_role_policy(
+        self.cluster.secret.grant_read(self.ods_history_processor_lambda)
+        self.ods_history_processor_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["rds-data:ExecuteStatement"],
                 resources=[self.cluster.cluster_arn]
             )
         )
 
-        self.history_processor_lambda.add_event_source(lambda_event_sources.SqsEventSource(self.callback_message_buffer_queue))
+        self.ods_history_processor_lambda.add_event_source(lambda_event_sources.SqsEventSource(self.callback_message_buffer_queue))
 
         self.class_mapper_lambda = _lambda.Function(
             self,
@@ -82,7 +82,7 @@ class RandomSystemStack(Stack):
 
         self.class_mapper_lambda.add_event_source(lambda_event_sources.SqsEventSource(self.transform_message_buffer_queue))
 
-        self.transform_message_buffer_queue.grant_send_messages(self.history_processor_lambda)
+        self.transform_message_buffer_queue.grant_send_messages(self.ods_history_processor_lambda)
         self.cluster.secret.grant_read(self.class_mapper_lambda)
         self.class_mapper_lambda.add_to_role_policy(
             iam.PolicyStatement(

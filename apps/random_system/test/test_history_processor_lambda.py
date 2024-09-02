@@ -13,11 +13,11 @@ os.environ[ENV_RANDOM_SYSTEM_OUTPUT_QUEUE_URL] = 'ENV_RANDOM_SYSTEM_OUTPUT_QUEUE
 
 from unittest.mock import patch
 import json
-from random_system.history_processor_lambda import lambda_handler
+from random_system.ods_history_processor_lambda import lambda_handler
 
-@patch('random_system.history_processor_lambda.transform_message')
-@patch('random_system.history_processor_lambda.sqs_client')
-@patch('random_system.history_processor_lambda.rds_data_client')
+@patch('random_system.ods_history_processor_lambda.transform_message')
+@patch('random_system.ods_history_processor_lambda.sqs_client')
+@patch('random_system.ods_history_processor_lambda.rds_data_client')
 def test_lambda_handler(mock_rds_data_client, mock_sqs_client, mock_transform_message):
     
     sample_event = {
