@@ -1,0 +1,149 @@
+name: cdk-comment-command
+run-name: "Run ID ${{ github.run_id }}: Running '${{ github.event.comment.body }}' on 'PR #${{ github.event.issue.number }}' - dev"
+on:
+  issue_comment:
+    types: [created]
+env:
+  environment: dev
+  account_id: ${{ vars.DEV_AWS_ACCOUNT_ID }}
+jobs:
+  cdk_command:
+    if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, 'cdk') }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # This is required for requesting the JWT
+      contents: read  # This is required for actions/checkout
+      pull-requests: write
+    outputs:
+      env: ${{ env.environment }}
+    steps:
+      - name: Checkout The Repository
+        uses: actions/checkout@v3
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/head # Checkout the latest commit of the PR branch
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      - name: Install Python Requirements
+        run: pip install -r requirements.txt
+      - name: Setup Node 18
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Install AWS CDK
+        run: npm install -g aws-cdk
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ env.account_id }}:role/oma-${{ env.environment }}-omfmktanalytics-github-actions_iam_role-ue1-all
+          role-session-name: github-actions-session
+          aws-region: us-east-1
+      - name: Run CDK Diff
+        if: ${{ startsWith(github.event.comment.body, 'cdk diff') }}
+        run: |
+          echo "Running CDK diff"
+          cdk synth -c env=dev -o out
+          cdk diff -c env=dev -o out -c aws-cdk:enableDiffNoFail=true 2>&1 | tee output.log
+      - name: Run CDK Deploy
+        if: ${{ startsWith(github.event.comment.body, 'cdk deploy') }}
+        continue-on-error: true
+        run: |
+          echo "Running CDK deploy"
+          cdk synth -c env=dev -o out
+          echo "Running ${{ github.event.comment.body }} --ci --require-approval never -c env=dev -o out"
+          ${{ github.event.comment.body }} --ci --exclusively --require-approval never -c env=dev --app out &> output.log
+      - name: Run CDK Destroy
+        if: ${{ startsWith(github.event.comment.body, 'cdk destroy') }}
+        continue-on-error: true
+        run: |
+          echo "Running CDK destroy"
+          cdk synth -c env=dev -o out
+          echo "Running ${{ github.event.comment.body }} --ci --require-approval never -c env=dev -o out"
+          ${{ github.event.comment.body }} --force -c env=dev --app out &> output.log
+      - name: Print CDK Diff Results
+        if: ${{ startsWith(github.event.comment.body, 'cdk diff') }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            var result = 'Executed CDK difference for `dev` environment\n<details>\n<summary>CDK Difference</summary>\n\n```bash\n';
+            var stacks = [];
+            var temp = '';
+
+            const allFileContents = fs.readFileSync('output.log', 'utf-8');
+            allFileContents.split(/\r?\n/).forEach(line =>  {
+              if (line.startsWith('Stack') || (line.includes('Number of stacks with differences'))) {
+                if (line.startsWith('Stack')) {
+                  stacks.push(line.replace('Stack', '').trim());
+                }
+                
+                if (temp != '') {
+                  result = result + '\n' + temp;
+                }
+                temp = line;
+              } else {
+                if (line == 'There were no differences') {
+                  temp = '';
+                  stacks.pop();
+                } else {
+                  temp = temp + '\n' + line;
+                }
+              }
+            
+              if (line.includes('Number of stacks with differences')) {
+                result = result + '\n' + line + '\n```\n\n</details>\n\n- To apply all the difference from this pull request, comment:\n\n\t>cdk deploy "**"';
+                result = result + '\n- To apply only specific Stacks, comment:\n\n\t>cdk deploy Stack1 Stack2...';
+                result = result + '\n- To apply Stacks with differences, comment:\n\n\t>cdk deploy ' + stacks.join(' ');
+              }
+            });
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `${ result }`
+            });
+            
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ["cdk-difference"]
+            })
+      - name: Print CDK Deploy/Destroy Results
+        if: ${{ startsWith(github.event.comment.body, 'cdk deploy') || startsWith(github.event.comment.body, 'cdk destroy') }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            var result = 'Executed CDK for `dev` environment\n\n>${{ github.event.comment.body }}\n\n<details>\n<summary>CDK Deployment log</summary>\n\n```bash\n\n';
+            result = result + fs.readFileSync('output.log', 'utf-8') + '\n```\n\n</details>';
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `${ result }`
+            });
+            
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ["cdk-deploy"]
+            })
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ github.workflow }}-run_number_${{ github.run_number }}-run_attempt_${{ github.run_attempt }}
+          path: |
+            ${{ github.workspace }}/out/
+            ${{ github.workspace }}/output.log
+  update_env_value:
+    needs: cdk_command
+    uses: ./.github/workflows/update-env-value.yml
+    with:
+      env: ${{ needs.cdk_command.outputs.env }}
+    secrets: inherit

@@ -4,10 +4,10 @@ import json
 from common.rds_data_client import RDSDataClient
 from common.sqs_client import SQSClient
 from common.constants import (
-    ENV_RANDOM_SYSTEM_DB_CLUSTER_ARN,
-    ENV_RANDOM_SYSTEM_DB_SECRET_ARN,
-    ENV_RANDOM_SYSTEM_DB_NAME,
-    ENV_RANDOM_SYSTEM_OUTPUT_QUEUE_URL,
+    ENV_ODS_DB_CLUSTER_ARN,
+    ENV_ODS_DB_SECRET_ARN,
+    ENV_ODS_DB_NAME,
+    ENV_ODS_OUTPUT_QUEUE_URL,
     get_logger,
 )
 
@@ -17,10 +17,10 @@ logger = get_logger()
 rds_data_client = RDSDataClient()
 sqs_client = SQSClient()
 
-cluster_arn = os.environ[ENV_RANDOM_SYSTEM_DB_CLUSTER_ARN]
-secret_arn = os.environ[ENV_RANDOM_SYSTEM_DB_SECRET_ARN]
-db_name = os.environ[ENV_RANDOM_SYSTEM_DB_NAME]
-output_queue_url = os.environ[ENV_RANDOM_SYSTEM_OUTPUT_QUEUE_URL]
+cluster_arn = os.environ[ENV_ODS_DB_CLUSTER_ARN]
+secret_arn = os.environ[ENV_ODS_DB_SECRET_ARN]
+db_name = os.environ[ENV_ODS_DB_NAME]
+output_queue_url = os.environ[ENV_ODS_OUTPUT_QUEUE_URL]
 
 def lambda_handler(event, context):
 

@@ -2,9 +2,9 @@ import os
 import json
 from common.rds_data_client import RDSDataClient
 from common.constants import (
-    ENV_RANDOM_SYSTEM_DB_CLUSTER_ARN,
-    ENV_RANDOM_SYSTEM_DB_SECRET_ARN,
-    ENV_RANDOM_SYSTEM_DB_NAME,
+    ENV_ODS_DB_CLUSTER_ARN,
+    ENV_ODS_DB_SECRET_ARN,
+    ENV_ODS_DB_NAME,
     get_logger,
 )
 
@@ -13,9 +13,9 @@ logger = get_logger()
 
 rds_data_client = RDSDataClient()
 
-cluster_arn = os.environ[ENV_RANDOM_SYSTEM_DB_CLUSTER_ARN]
-secret_arn = os.environ[ENV_RANDOM_SYSTEM_DB_SECRET_ARN]
-db_name = os.environ[ENV_RANDOM_SYSTEM_DB_NAME]
+cluster_arn = os.environ[ENV_ODS_DB_CLUSTER_ARN]
+secret_arn = os.environ[ENV_ODS_DB_SECRET_ARN]
+db_name = os.environ[ENV_ODS_DB_NAME]
 
 def lambda_handler(event, context):
 

@@ -1,0 +1,56 @@
+name: archive-workflow-run-logs
+run-name: "Run ID ${{ github.event.workflow_run.id}}: Archiving Workflow Run Logs in S3 - ${{ vars.ENV }}"
+on:
+  workflow_run:
+    workflows: 
+      - cdk-comment-command
+      - cdk-auto-diff-command
+    types:
+      - completed
+env:
+  environment: ${{ vars.ENV }}
+jobs:
+  archive_logs:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # This is required for requesting the JWT
+      contents: read  # This is required for actions/checkout
+      actions: read
+    steps:
+      - name: Configure AWS Credentials - dev
+        if: env.environment == 'dev'    
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.DEV_AWS_ACCOUNT_ID }}:role/oma-dev-omfmktanalytics-github-actions_iam_role-ue1-all
+          role-session-name: github-actions-session
+          aws-region: us-east-1
+      - name: Configure AWS Credentials - stg
+        if: env.environment == 'stg'
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.STG_AWS_ACCOUNT_ID }}:role/oma-stg-omfmktanalytics-github-actions_iam_role-ue1-all
+          role-session-name: github-actions-session
+          aws-region: us-east-1
+      - name: Configure AWS Credentials - prod
+        if: env.environment == 'prod'
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.PROD_AWS_ACCOUNT_ID }}:role/oma-prod-omfmktanalytics-github-actions_iam_role-ue1-all
+          role-session-name: github-actions-session
+          aws-region: us-east-1
+      - name: Download '${{ github.event.workflow.name}}' Workflow Run Logs - ${{env.environment}}
+        run: |
+          curl -L \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          ${{ github.api_url }}/repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id}}/logs \
+          -o ${{ github.workspace }}/runId_${{ github.event.workflow_run.id}}.zip
+      - name: Upload '${{ github.event.workflow.name}}' Workflow Run Logs - ${{env.environment}}
+        run: |
+          aws s3 sync ${{ github.workspace }} \
+          s3://${{ github.event.repository.name }}-${{env.environment}}-workflow-run-logs/${{ github.event.workflow.name}}
+
+
+
+

@@ -1,0 +1,155 @@
+name: cdk-auto-diff-command
+run-name: "Run ID ${{github.run_id}}: Running auto 'cdk diff' for '${{ github.head_ref }}' branch - dev"
+on:
+  pull_request:
+    paths:
+      - 'cdk/**'
+      - 'app.py'
+      - 'cdk.json'
+env:
+  environment: dev
+  account_id: ${{ vars.DEV_AWS_ACCOUNT_ID }}
+jobs:
+  cdk_diff:
+    runs-on: ubuntu-latest
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+      id-token: write # This is required for requesting the JWT
+      contents: read  # This is required for actions/checkout
+      pull-requests: write
+    outputs:
+      env: ${{ env.environment }}
+    steps:
+      - name: Checkout The Repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{github.event.pull_request.head.sha}} # Checkout the latest commit of the PR branch
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      - name: Install Python Requirements
+        run: pip install -r requirements.txt
+      - name: Setup Node 18
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Install AWS CDK
+        run: npm install -g aws-cdk
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{env.account_id}}:role/oma-${{env.environment}}-omfmktanalytics-github-actions_iam_role-ue1-all
+          role-session-name: github-actions-session
+          aws-region: us-east-1
+      - name: Run CDK Diff
+        run: |
+          echo "Generating CDK diff file"
+          cdk synth -c env=dev -o out
+          cdk diff -c env=dev -o out -c aws-cdk:enableDiffNoFail=true 2>&1 | tee output.log
+          mkdir cfn_template
+          cp out/*.template.json cfn_template/
+      - name: Run Cfn Nag
+        uses: stelligent/cfn_nag@master
+        with:
+          input_path: cfn_template
+          output_path: cfn_nag.log
+      - name: Print CDK diff results
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            var result = 'Executed CDK difference for `dev` environment\n<details>\n<summary>CDK Difference</summary>\n\n```\n';
+            var stacks = [];
+            var temp = '';
+
+            const allFileContents = fs.readFileSync('output.log', 'utf-8');
+            allFileContents.split(/\r?\n/).forEach(line =>  {
+              if (line.startsWith('Stack') || (line.includes('Number of stacks with differences'))) {
+                if (line.startsWith('Stack')) {
+                  stacks.push(line.replace('Stack', '').trim());
+                }
+                
+                if (temp != '') {
+                  result = result + '\n' + temp;
+                }
+                temp = line;
+              } else {
+                if (line == 'There were no differences') {
+                  temp = '';
+                  stacks.pop();
+                } else {
+                  temp = temp + '\n' + line;
+                }
+              }
+            
+              if (line.includes('Number of stacks with differences')) {
+                result = result + '\n' + line + '\n```\n\n</details>\n';
+                
+                if (stacks.length > 0) {
+                  result = result + '\n- To apply all the difference from this pull request, comment:\n\n\t>cdk deploy "**"';
+                  result = result + '\n- To apply only specific Stacks, comment:\n\n\t>cdk deploy Stack1 Stack2...';
+                  result = result + '\n- To apply Stacks with differences, comment:\n\n\t>cdk deploy ' + stacks.join(' ');
+                }
+              }
+            });
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `${ result }`
+            })
+            
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ["cdk-difference"]
+            })
+
+      - name: Print Cfn Nag Results
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            var cfn_nag_result = fs.readFileSync('cfn_nag.log', 'utf-8');
+            var result = 'Executed CloudFormation security check for `dev` environment\n\n<details>\n<summary>Cfn nag log</summary>\n\n```bash\n\n';
+            result = result + cfn_nag_result + '\n```\n\n</details>';
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `${ result }`
+            })
+            
+            if (cfn_nag_result.includes('FAIL')) {
+              github.rest.issues.addLabels({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: ["cfn-nag-failed"]
+              })
+            } else {
+              github.rest.issues.addLabels({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: ["cfn-nag-passed"]
+              })
+            }
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{github.workflow }}-run_number_${{github.run_number}}-run_attempt_${{github.run_attempt}}
+          path: |
+            ${{ github.workspace }}/out/
+            ${{ github.workspace }}/output.log
+  update_env_value:
+    needs: cdk_diff
+    uses: ./.github/workflows/update-env-value.yml
+    with:
+      env: ${{ needs.cdk_diff.outputs.env }}
+    secrets: inherit
