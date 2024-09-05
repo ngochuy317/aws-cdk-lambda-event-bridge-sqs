@@ -35,6 +35,15 @@ class MessageSubmitCallbacksStack(Stack):
         )
         self.msg_submit_callbacks_event_bus.grant_put_events_to(self.message_submit_callbacks_lambda)
 
+        rule = events.Rule(
+            self,
+            self.execution_context.aws_event_rule.create_resource_id(f"{self.module_name()}-event-rule"),
+            rule_name=self.execution_context.aws_event_rule.create_resource_name(f"{self.module_name()}-event-rule"),
+            event_bus=self.msg_submit_callbacks_event_bus,
+            event_pattern={
+                "detail_type": ["message-submit"]
+            })
+
         self.message_submit_callbacks_queue = self.create_fifo_queue("message-submit-callbacks")
         self.message_submit_callbacks_queue.grant_consume_messages(self.message_submit_callbacks_lambda)
         self.message_submit_callbacks_lambda.add_event_source(lambda_event_sources.SqsEventSource(self.message_submit_callbacks_queue))
