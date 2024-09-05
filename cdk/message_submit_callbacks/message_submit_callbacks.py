@@ -2,6 +2,7 @@ from aws_cdk import (
     Duration,
     Stack,
     aws_events as events,
+    aws_events_targets as targets,
     aws_apigateway as apigateway,
     aws_sqs as sqs,
     aws_lambda as _lambda,
@@ -43,6 +44,15 @@ class MessageSubmitCallbacksStack(Stack):
             event_pattern={
                 "detail_type": ["message-submit"]
             })
+        
+        target_lambda = _lambda.Function(
+            self,
+            "TargetLambda",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            code=self.execution_context.aws_lambda.get_local_code(self.code_location()),
+            handler="message_submit_callbacks.target_lambda.handler"
+        )
+        rule.add_target(targets.LambdaFunction(target_lambda))
 
         self.message_submit_callbacks_queue = self.create_fifo_queue("message-submit-callbacks")
         self.message_submit_callbacks_queue.grant_consume_messages(self.message_submit_callbacks_lambda)

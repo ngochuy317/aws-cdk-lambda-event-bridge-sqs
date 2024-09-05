@@ -1,6 +1,5 @@
 import os
 import json
-from datetime import datetime
 from common.constants import get_logger
 from common.event_bridge import EventBridge
 
