@@ -3,15 +3,15 @@ import os
 
 import aws_cdk as cdk
 
-from cdk.ods.ods import ODSStack
+from cdk.message_submit_callbacks.message_submit_callbacks import MessageSubmitCallbacksStack
 from cdk.common.execution_context import ExecutionContext
 
 
 app = cdk.App()
 execution_context = ExecutionContext(app)
-ods = ODSStack(
+message_submit_callback = MessageSubmitCallbacksStack(
     app,
-    "ODSStack",
+    "MessageSubmitCallbacksStack",
     execution_context=execution_context,
     env=execution_context.target_environment,
 )
