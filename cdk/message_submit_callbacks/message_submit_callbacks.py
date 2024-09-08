@@ -1,6 +1,7 @@
 from aws_cdk import (
     Duration,
     Stack,
+    aws_cognito as cognito,
     aws_events as events,
     aws_events_targets as targets,
     aws_apigateway as apigateway,
@@ -13,20 +14,23 @@ from constructs import Construct
 from cdk.common.execution_context import ExecutionContext
 
 class MessageSubmitCallbacksStack(Stack):
+    AUTH_SCOPE_SMS_SEND = 'sms.send'
+    AUTH_SERVER_NAME = 'ods'
+
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         self.execution_context: ExecutionContext = kwargs.pop("execution_context")
         super().__init__(scope, construct_id, **kwargs)
 
         self.msg_submit_callbacks_event_bus = events.EventBus(
             self,
-            self.execution_context.aws_event_rule.create_resource_id(f"{self.module_name()}-msg-submit-callbacks-event-bus"),
-            event_bus_name=self.execution_context.aws_event_rule.create_resource_name(f"{self.module_name()}-msg-submit-callbacks-event-bus"),
+            self.execution_context.aws_event_bus.create_resource_id(f"{self.module_name()}"),
+            event_bus_name=self.execution_context.aws_event_bus.create_resource_name(f"{self.module_name()}"),
         )
 
         self.message_submit_callbacks_lambda = _lambda.Function(
             self,
-            self.execution_context.aws_lambda.create_resource_id(f"{self.module_name()}-msg-submit-callbacks"),
-            function_name=self.execution_context.aws_lambda.create_resource_name(f"{self.module_name()}-msg-submit-callbacks"),
+            self.execution_context.aws_lambda.create_resource_id(f"{self.module_name()}"),
+            function_name=self.execution_context.aws_lambda.create_resource_name(f"{self.module_name()}"),
             code=self.execution_context.aws_lambda.get_local_code(self.code_location()),
             handler="message_submit_callbacks.message_submit_callbacks_lambda.handler",
             environment={
@@ -38,8 +42,8 @@ class MessageSubmitCallbacksStack(Stack):
 
         rule = events.Rule(
             self,
-            self.execution_context.aws_event_rule.create_resource_id(f"{self.module_name()}-event-rule"),
-            rule_name=self.execution_context.aws_event_rule.create_resource_name(f"{self.module_name()}-event-rule"),
+            self.execution_context.aws_event_rule.create_resource_id(f"{self.module_name()}"),
+            rule_name=self.execution_context.aws_event_rule.create_resource_name(f"{self.module_name()}"),
             event_bus=self.msg_submit_callbacks_event_bus,
             event_pattern={
                 "detail_type": ["message-submit"]
@@ -58,12 +62,13 @@ class MessageSubmitCallbacksStack(Stack):
         self.message_submit_callbacks_queue.grant_consume_messages(self.message_submit_callbacks_lambda)
         self.message_submit_callbacks_lambda.add_event_source(lambda_event_sources.SqsEventSource(self.message_submit_callbacks_queue))
 
-        self.create_api_gateway_sqs_role = self.create_api_gateway_role()
+        self.cognito_server = self.create_cognito_server()
         self.api_gw = self.create_api_gateway()
-        self.create_api_resources_and_methods()
+        self.rest_auth = self.create_authorizer(self.cognito_server)
+        self.add_resource(self.rest_auth, self.api_gw, self.message_submit_callbacks_queue)
     
     def module_name(self) -> str:
-        return 'msg-submit-callbacks'
+        return 'message-submit-callbacks'
 
     def code_location(self) -> str:
         return 'message_submit_callbacks'
@@ -82,18 +87,38 @@ class MessageSubmitCallbacksStack(Stack):
         return apigateway.RestApi(
             self,
             "MessageSubmitCallbacksApi",
-            rest_api_name="MessageSubmitCallbacksApi",
+            rest_api_name="message-submit-callbacks-api",
             description="MessageSubmitCallbacksApi",
+            cloud_watch_role=True,
+            deploy=False,
+            endpoint_types=[apigateway.EndpointType.REGIONAL]
         )
     
-    def create_api_resources_and_methods(self) -> None:
+    def create_api_role(self, output_queue: sqs.Queue):
+        role = iam.Role(
+            self,
+            'OdsApiGatewayRole',
+            assumed_by=iam.ServicePrincipal('apigateway.amazonaws.com'),
+            role_name=self.execution_context.aws_iam.create_resource_name('ods-api')
+        )
 
+        output_queue.grant_send_messages(role)
+        return role
+    
+    def add_resource(
+            self,
+            authorizer: apigateway.CognitoUserPoolsAuthorizer,
+            rest_api: apigateway.RestApi,
+            output_queue: sqs.Queue
+        ) -> None:
+
+        api_role = self.create_api_role(output_queue)
         submit_message_integration = apigateway.AwsIntegration(
             service="sqs",
-            path=f"{self.execution_context.env_properties['account_id']}/{self.message_submit_callbacks_queue.queue_name}",
+            path=f"{self.execution_context.env_properties['account_id']}/{output_queue.queue_name}",
             integration_http_method="POST",
             options=apigateway.IntegrationOptions(
-                credentials_role=self.create_api_gateway_sqs_role,
+                credentials_role=api_role,
                 request_parameters={
                     "integration.request.header.Content-Type": "'application/x-www-form-urlencoded'"
                 },
@@ -114,23 +139,77 @@ class MessageSubmitCallbacksStack(Stack):
             )
         )
 
-        # Add POST method to API Gateway resource
-        self.api_gw.root.add_method(
-            "POST",
-            submit_message_integration,
-            method_responses=[
-                apigateway.MethodResponse(status_code="200")
-            ]
+        empty_model = rest_api.add_model(
+            "EmptyResponseModel",
+            content_type="application/json",
+            model_name="EmptyResponseModel",
+            schema=apigateway.JsonSchema(
+            schema=apigateway.JsonSchemaVersion.DRAFT4,
+            title="Empty schema",
+            type=apigateway.JsonSchemaType.OBJECT)
         )
 
-    def create_api_gateway_role(self) -> iam.Role:
-        role = iam.Role(
+        resource = rest_api.root.add_resource('sinch').add_resource('submit')
+        resource.add_method(
+            "POST",
+            integration=submit_message_integration,
+            authorization_type=apigateway.AuthorizationType.COGNITO,
+            authorizer=authorizer,
+            authorization_scopes=[f'{self.get_auth_server_name()}/{self.AUTH_SCOPE_SMS_SEND}']
+        ).add_method_response(status_code='200', response_models={"application/json": empty_model})
+    
+    def create_authorizer(self, user_pool: cognito.UserPool):
+        return apigateway.CognitoUserPoolsAuthorizer(
             self,
-            "ApiGatewaySqsRole",
-            assumed_by=iam.ServicePrincipal("apigateway.amazonaws.com"),
+            'OdsCognitoAuthorizer',
+            cognito_user_pools=[user_pool]
         )
-        role.add_to_policy(iam.PolicyStatement(
-            actions=["sqs:SendMessage", "sqs:ReceiveMessage"],
-            resources=[self.message_submit_callbacks_queue.queue_arn]
-        ))
-        return role
+    
+    def get_auth_server_name(self):
+        return f'{self.AUTH_SERVER_NAME}-{self.execution_context.get_short_env()}'
+    
+    def create_cognito_server(self):
+        user_pool = cognito.UserPool(
+            self,
+            'OdsCognitoUserPool',
+            self_sign_up_enabled=False,
+            user_pool_name=self.get_auth_server_name()
+        )
+        user_pool.add_domain(
+            'OdsUserPoolDomain',
+            cognito_domain=cognito.CognitoDomainOptions(domain_prefix=self.get_auth_server_name())
+        )
+
+        sms_scope = cognito.ResourceServerScope(
+            scope_name=self.AUTH_SCOPE_SMS_SEND,
+            scope_description='Sms send scope'
+        )
+        resource_server = user_pool.add_resource_server(
+            'OdsCognitoResourceServer',
+            identifier=self.get_auth_server_name(),
+            user_pool_resource_server_name=self.get_auth_server_name(),
+            scopes=[sms_scope]
+        )
+
+        user_pool.add_client(
+            'OdsCognitoUserPoolClient',
+            user_pool_client_name=self.get_auth_server_name(),
+            id_token_validity=Duration.days(1),
+            access_token_validity=Duration.days(1),
+            auth_flows=cognito.AuthFlow(
+                user_password=False,
+                user_srp=False,
+                custom=True
+            ),
+            o_auth=cognito.OAuthSettings(
+                flows=cognito.OAuthFlows(
+                    authorization_code_grant=False,
+                    implicit_code_grant=False,
+                    client_credentials=True
+                ),
+                scopes=[cognito.OAuthScope.resource_server(resource_server, sms_scope)]
+            ),
+            prevent_user_existence_errors=True,
+            generate_secret=True)
+
+        return user_pool
