@@ -1,0 +1,7 @@
+pytest==7.2.0
+pytest-mock==3.14.0
+coverage==7.2.5
+pytest-html==3.2.0
+moto==4.1.11
+pyspark==3.5.1
+requests==2.32.2

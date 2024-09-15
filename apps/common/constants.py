@@ -8,6 +8,10 @@ def get_global_environment():
     return os.getenv(ENV_LAMBDA_GLOBAL_ENVIRONMENT_KEY)
 
 
+def is_non_prod():
+    return get_global_environment() != 'prod'
+
+
 def get_logger():
     logger = logging.getLogger('CustomHandler')
 
@@ -18,9 +22,3 @@ def get_logger():
         logger.setLevel(logging.DEBUG)
 
     return logger
-
-
-ENV_ODS_DB_CLUSTER_ARN = "DB_CLUSTER_ARN"
-ENV_ODS_DB_SECRET_ARN = "DB_SECRET_ARN"
-ENV_ODS_DB_NAME = "DB_NAME"
-ENV_ODS_OUTPUT_QUEUE_URL = "OUTPUT_QUEUE_URL"

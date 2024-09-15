@@ -26,6 +26,8 @@
         "account_id": "723587551719",
         "region": "us-east-1",
         "short_env": "dev",
+        "environment": "development",
+        "sub_project": "COMM-HISTORY",
         "project": "oma",
         "short_region": "ue1"
       }

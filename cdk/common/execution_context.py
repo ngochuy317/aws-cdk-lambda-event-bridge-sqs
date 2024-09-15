@@ -51,6 +51,7 @@ class ExecutionContext:
         self.aws_event_bus = AwsEventBusResource(self.base)
         self.aws_event_rule = AwsEventRuleResource(self.base)
         self.aws_glue = AwsGlueJobResource(self.base)
+        self.aws_kms = AwsKmsResource(self.base)
 
     def get_short_env(self):
         return self.env_properties["short_env"]
@@ -197,6 +198,50 @@ class AwsDynamoDbResource(SpecificAwsResource):
     def __init__(self, base_resource):
         super().__init__("dynamo-db", base_resource)
 
+    def create_table(self, scope, table_name, partition_key, sort_key=None, time_to_live_attribute=None):
+        args = {
+            "scope": scope,
+            "id": self.create_resource_id(table_name),
+            "table_name": self.create_resource_name(table_name),
+            "partition_key": cdk.aws_dynamodb.Attribute(
+                name=partition_key,
+                type=cdk.aws_dynamodb.AttributeType.STRING
+            ),
+            "billing_mode": cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST
+        }
+
+        if sort_key:
+            args['sort_key'] = cdk.aws_dynamodb.Attribute(
+                name=sort_key, type=cdk.aws_dynamodb.AttributeType.STRING
+            )
+
+        if time_to_live_attribute:
+            args['time_to_live_attribute'] = time_to_live_attribute
+
+        return cdk.aws_dynamodb.Table(**args)
+
+    def create_table_for_lambda(self, env_var_table_name, lambda_handler, scope, table_name, partition_key,
+                                sort_key=None, time_to_live_attribute=None, write_access=None):
+        dynamo_table = self.create_table(
+            scope, table_name, partition_key, sort_key, time_to_live_attribute
+        )
+
+        dynamo_table.grant_read_data(lambda_handler)
+        if write_access:
+            dynamo_table.grant_write_data(lambda_handler)
+
+        lambda_handler.add_environment(env_var_table_name, dynamo_table.table_name)
+        lambda_handler.add_environment(f"{self.format_lambda_env_var(table_name)}_PARTITION_KEY", partition_key)
+
+        if sort_key:
+            lambda_handler.add_environment(f"{self.format_lambda_env_var(table_name)}_SORT_KEY", sort_key)
+
+        return dynamo_table
+
+    @staticmethod
+    def format_lambda_env_var(value):
+        return value.upper().replace("-", "_")
+
 
 class AwsIamResource(SpecificAwsResource):
     def __init__(self, base_resource):
@@ -243,3 +288,8 @@ class AwsEventRuleResource(SpecificAwsResource):
 class AwsGlueJobResource(SpecificAwsResource):
     def __init__(self, base_resource):
         super().__init__("glue", base_resource)
+
+
+class AwsKmsResource(SpecificAwsResource):
+    def __init__(self, base_resource):
+        super().__init__("kms", base_resource)
