@@ -1,0 +1,4 @@
+[MAIN]
+max-line-length=130
+init-hook='import sys; sys.path.append(".")'
+disable=missing-function-docstring

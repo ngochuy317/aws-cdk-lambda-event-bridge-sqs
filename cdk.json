@@ -27,7 +27,9 @@
         "region": "us-east-1",
         "short_env": "dev",
         "project": "oma",
-        "short_region": "ue1"
+        "short_region": "ue1",
+        "sub_project": "COMM-HISTORY",
+        "environment": "development"
       }
     },
     "@aws-cdk-containers/ecs-service-extensions:enableDefaultLogDriver": true,
