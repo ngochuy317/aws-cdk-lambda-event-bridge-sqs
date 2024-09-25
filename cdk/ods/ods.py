@@ -51,6 +51,7 @@ class ODSStack(Stack):
                 self,
                 visibility_timeout=Duration.seconds(60)
             )
+            queue.grant_consume_messages(self.history_class_mapper_lambda)
             self.ods_history_processor_lambda.add_event_source(lambda_event_sources.SqsEventSource(queue))
 
             rule = events.Rule(
@@ -59,7 +60,7 @@ class ODSStack(Stack):
                 description=self.event_bus_description(name),
                 rule_name=self.execution_context.aws_event_rule.create_resource_name(f"{self.module_name()}-{name}"),
                 event_pattern=events.EventPattern(
-                    detail={"_service_next_action": self.event_bus_action()}
+                    source=["SINCH"],
                 ),
                 event_bus=event_bus,
             )

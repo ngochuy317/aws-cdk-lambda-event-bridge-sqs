@@ -19,7 +19,7 @@ def lambda_handler(event, context):
     # Process each SQS message
     for record in event['Records']:
         try:
-            message = {"eventSourceARN": record["eventSourceARN"]}
+            message = record["body"]
 
             # Send the transformed message to another SQS queue
             sqs_client.send_to_sqs(message, ENV_ODS_TO_CLASS_QUEUE_URL)
