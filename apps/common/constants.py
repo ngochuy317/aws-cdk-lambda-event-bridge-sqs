@@ -2,6 +2,8 @@ import logging
 import os
 
 ENV_LAMBDA_GLOBAL_ENVIRONMENT_KEY = "GLOBAL_ENVIRONMENT"
+ENV_LAMBDA_REGION_KEY = "REGION"
+ENV_PRODUCTION = 'prod'
 
 
 def get_global_environment():
@@ -10,6 +12,10 @@ def get_global_environment():
 
 def is_non_prod():
     return get_global_environment() != 'prod'
+
+
+def get_region():
+    return os.getenv(ENV_LAMBDA_REGION_KEY)
 
 
 def get_logger():
