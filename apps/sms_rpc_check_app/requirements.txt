@@ -1,0 +1,5 @@
+boto3==1.28.69
+pandas==2.1.1
+pandarallel==1.6.5
+pyarrow==11.0.0
+fsspec==2023.1.0

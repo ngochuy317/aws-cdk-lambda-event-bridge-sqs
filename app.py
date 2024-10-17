@@ -2,15 +2,15 @@
 import aws_cdk as cdk
 
 from cdk.common.execution_context import ExecutionContext
-from cdk.mulesoft_proxy.mulesoft_proxy import MulesoftProxyStack
+from cdk.sinch_proxy.sinch_proxy import SinchServiceStack
 
 app = cdk.App()
 
 # read environment specific properties
 execution_context = ExecutionContext(app)
-mulesoft_proxy = MulesoftProxyStack(
+sinch_service = SinchServiceStack(
     app,
-    "MulesoftProxyStack",
+    "SinchServiceStack",
     execution_context=execution_context,
     env=execution_context.target_environment,
 )

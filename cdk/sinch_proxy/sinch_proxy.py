@@ -4,66 +4,51 @@ from aws_cdk import (
     aws_cognito as cognito,
     aws_iam as iam,
     aws_apigateway as apigateway,
+    aws_events as events,
+    aws_events_targets as targets,
     aws_lambda as _lambda,
     aws_ec2 as ec2,
 )
 from constructs import Construct
 from cdk.common.execution_context import ExecutionContext
 
-from apps.mulesoft_proxy.const import (
-    ENV_LAMBDA_MULESOFT_CLIENT_ID,
-    ENV_LAMBDA_MULESOFT_CLIENT_SECRET,
-    ENV_LAMBDA_MULESOFT_CUSTOMER_ACCOUNT_ENDPOINT,
-    ENV_STRATEGY_TABLE_NAME,
-    ENV_LAMBDA_MULESOFT_OUTREACH_ENDPOINT,
-    ENV_LAMBDA_MULESOFT_USERNAME,
-    ENV_LAMBDA_MULESOFT_PASSWORD,
-    ENV_LAMBDA_MULESOFT_POPUP_ENDPOINT,
-)
 
 
-class MulesoftProxyStack(Stack):
+class SinchServiceStack(Stack):
+
+    AUTH_SERVER_NAME = 'sinch-proxy'
     AUTH_SCOPE_SMS_SEND = 'sms.send'
-    AUTH_SERVER_NAME = 'mulesoft-proxy'
-
+    
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         self.execution_context: ExecutionContext = kwargs.pop("execution_context")
         super().__init__(scope, construct_id, **kwargs)
 
-        self.mulesoft_vpc = self.create_vpc()
+        self.sinch_proxy_vpc = self.create_vpc()
 
-        self.mulesoft_lambda = _lambda.Function(
+        self.sinch_proxy_lambda = _lambda.Function(
             self,
             self.execution_context.aws_lambda.create_resource_id(self.module_name()),
             function_name=self.execution_context.aws_lambda.create_resource_name(self.module_name()),
             code=self.execution_context.aws_lambda.get_local_code(self.code_location()),
-            handler="mulesoft_proxy.handler.lambda_handler",
-            environment={
-                ENV_LAMBDA_MULESOFT_CLIENT_ID: ENV_LAMBDA_MULESOFT_CLIENT_ID,
-                ENV_LAMBDA_MULESOFT_CLIENT_SECRET: ENV_LAMBDA_MULESOFT_CLIENT_SECRET,
-                ENV_LAMBDA_MULESOFT_CUSTOMER_ACCOUNT_ENDPOINT: ENV_LAMBDA_MULESOFT_CUSTOMER_ACCOUNT_ENDPOINT,
-                ENV_STRATEGY_TABLE_NAME: ENV_STRATEGY_TABLE_NAME,
-                ENV_LAMBDA_MULESOFT_OUTREACH_ENDPOINT: ENV_LAMBDA_MULESOFT_OUTREACH_ENDPOINT,
-                ENV_LAMBDA_MULESOFT_USERNAME: ENV_LAMBDA_MULESOFT_USERNAME,
-                ENV_LAMBDA_MULESOFT_PASSWORD: ENV_LAMBDA_MULESOFT_PASSWORD,
-                ENV_LAMBDA_MULESOFT_POPUP_ENDPOINT: ENV_LAMBDA_MULESOFT_POPUP_ENDPOINT,
-            },
+            handler="sinch_proxy.main.lambda_handler",
+            environment={},
             runtime=_lambda.Runtime.PYTHON_3_9,
-            vpc=self.mulesoft_vpc,
+            vpc=self.sinch_proxy_vpc,
             vpc_subnets=ec2.SubnetSelection(
                 subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS
             ),
             security_groups=[
                 ec2.SecurityGroup(
                     self,
-                    "MulesoftLambdaSecurityGroup",
-                    vpc=self.mulesoft_vpc,
+                    "SinchLambdaSecurityGroup",
+                    vpc=self.sinch_proxy_vpc,
                     description="Security group for Lambda within VPC",
                     allow_all_outbound=True,
                 )
             ]
         )
-        self.mulesoft_lambda.add_to_role_policy(
+
+        self.sinch_proxy_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["ssm:GetParameter"],
                 resources=[f"arn:aws:ssm:{self.execution_context.env_properties['region']}:{self.execution_context.env_properties['account_id']}:parameter/*"]
@@ -75,18 +60,22 @@ class MulesoftProxyStack(Stack):
         self.rest_auth = self.create_authorizer(self.cognito_server)
         self.add_resource(self.rest_auth, self.api_gw)
 
-    def module_name(self) -> str:
-        return 'mulesoft-proxy'
+    def create_authorizer(self, user_pool: cognito.UserPool) -> apigateway.CognitoUserPoolsAuthorizer:
+        return apigateway.CognitoUserPoolsAuthorizer(
+            self,
+            'SinchProxyCognitoAuthorizer',
+            cognito_user_pools=[user_pool]
+        )
 
-    def code_location(self) -> str:
-        return 'mulesoft_proxy'
-
+    def get_auth_server_name(self) -> str:
+        return f'{self.AUTH_SERVER_NAME}-{self.execution_context.get_short_env()}'
+    
     def create_api_gateway(self) -> apigateway.RestApi:
         return apigateway.RestApi(
             self,
-            "MulesoftProxyApi",
-            rest_api_name="mulesoft-proxy-api",
-            description="MulesoftProxyApi",
+            "SinchProxyApi",
+            rest_api_name="sinch-proxy-api",
+            description="SinchProxyApi",
             cloud_watch_role=True,
             deploy=True,
             endpoint_types=[apigateway.EndpointType.REGIONAL]
@@ -98,9 +87,46 @@ class MulesoftProxyStack(Stack):
             rest_api: apigateway.RestApi,
         ) -> None:
 
-        mulesoft_lambda_integration = apigateway.LambdaIntegration(
-            self.mulesoft_lambda,
-            proxy=True,
+        sinch_event_bus = events.EventBus(
+            self,
+            self.execution_context.aws_event_bus.create_resource_id(self.module_name()),
+            event_bus_name=self.execution_context.aws_event_bus.create_resource_name(self.module_name()),
+        )
+
+        sinch_rule = events.Rule(
+            self,
+            self.execution_context.aws_event_rule.create_resource_name(self.module_name()),
+            rule_name=self.execution_context.aws_event_rule.create_resource_name(self.module_name()),
+            event_pattern={
+                "source": ["api-gateway"],
+                "detail_type": ["API Gateway Proxy"]
+            },
+            event_bus=sinch_event_bus,
+        )
+
+        sinch_rule_integration = apigateway.AwsIntegration(
+            service="events",
+            action="PutEvents",
+            options=apigateway.IntegrationOptions(
+                credentials_role=iam.Role(
+                    self,
+                    "ApiGatewayInvokeEventBridgeRole",
+                    assumed_by=iam.ServicePrincipal("apigateway.amazonaws.com"),
+                    inline_policies={
+                        "AllowEventBridgePutEvents": iam.PolicyDocument(
+                            statements=[
+                                iam.PolicyStatement(
+                                    actions=["events:PutEvents"],
+                                    resources=[sinch_event_bus.event_bus_arn]
+                                )
+                            ]
+                        )
+                    }
+                ),
+                integration_responses=[{
+                    "statusCode": "200"
+                }]
+            )
         )
 
         empty_model = rest_api.add_model(
@@ -113,34 +139,26 @@ class MulesoftProxyStack(Stack):
             type=apigateway.JsonSchemaType.OBJECT)
         )
 
-        resource = rest_api.root.add_resource('mulesoft')
+        resource = rest_api.root.add_resource('sinch')
         resource.add_method(
             "POST",
-            integration=mulesoft_lambda_integration,
+            integration=sinch_rule_integration,
             authorization_type=apigateway.AuthorizationType.COGNITO,
             authorizer=authorizer,
             authorization_scopes=[f'{self.get_auth_server_name()}/{self.AUTH_SCOPE_SMS_SEND}']
         ).add_method_response(status_code='200', response_models={"application/json": empty_model})
 
-    def create_authorizer(self, user_pool: cognito.UserPool) -> apigateway.CognitoUserPoolsAuthorizer:
-        return apigateway.CognitoUserPoolsAuthorizer(
-            self,
-            'MulesoftProxyCognitoAuthorizer',
-            cognito_user_pools=[user_pool]
-        )
-
-    def get_auth_server_name(self) -> str:
-        return f'{self.AUTH_SERVER_NAME}-{self.execution_context.get_short_env()}'
+        sinch_rule.add_target(targets.LambdaFunction(self.sinch_proxy_lambda))
     
     def create_cognito_server(self) -> cognito.UserPool:
         user_pool = cognito.UserPool(
             self,
-            'MulesoftProxyCognitoUserPool',
+            'SinchProxyCognitoUserPool',
             self_sign_up_enabled=False,
             user_pool_name=self.get_auth_server_name()
         )
         user_pool.add_domain(
-            'MulesoftProxyUserPoolDomain',
+            'SinchProxyUserPoolDomain',
             cognito_domain=cognito.CognitoDomainOptions(domain_prefix=self.get_auth_server_name())
         )
 
@@ -149,14 +167,14 @@ class MulesoftProxyStack(Stack):
             scope_description='Sms send scope'
         )
         resource_server = user_pool.add_resource_server(
-            'MulesoftProxyCognitoResourceServer',
+            'SinchProxyCognitoResourceServer',
             identifier=self.get_auth_server_name(),
             user_pool_resource_server_name=self.get_auth_server_name(),
             scopes=[sms_scope]
         )
 
         user_pool.add_client(
-            'MulesoftProxyCognitoUserPoolClient',
+            'SinchProxyCognitoUserPoolClient',
             user_pool_client_name=self.get_auth_server_name(),
             id_token_validity=Duration.days(1),
             access_token_validity=Duration.days(1),
@@ -178,10 +196,16 @@ class MulesoftProxyStack(Stack):
 
         return user_pool
 
+    def module_name(self) -> str:
+        return 'sinch-proxy'
+
+    def code_location(self) -> str:
+        return 'sinch_proxy'
+    
     def create_vpc(self) -> ec2.Vpc:
         vpc = ec2.Vpc(
             self, 
-            "MulesoftVpc",
+            "SinchProxyVpc",
             max_azs=2,
             nat_gateways=1,
             subnet_configuration=[
