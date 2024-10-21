@@ -2,15 +2,15 @@
 import aws_cdk as cdk
 
 from cdk.common.execution_context import ExecutionContext
-from cdk.sinch_proxy.sinch_proxy import SinchServiceStack
+from cdk.refresh_sinch_token.refresh_sinch_token import RefreshSinchTokenStack
 
 app = cdk.App()
 
 # read environment specific properties
 execution_context = ExecutionContext(app)
-sinch_service = SinchServiceStack(
+refresh_sinch_token = RefreshSinchTokenStack(
     app,
-    "SinchServiceStack",
+    "RefreshSinchTokenStack",
     execution_context=execution_context,
     env=execution_context.target_environment,
 )
