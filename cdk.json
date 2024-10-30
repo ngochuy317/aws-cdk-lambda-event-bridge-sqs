@@ -29,7 +29,159 @@
         "project": "oma",
         "short_region": "ue1",
         "sub_project": "COMM-HISTORY",
-        "environment": "development"
+        "environment": "development",
+        "loan_short_codes" : {
+          "cards": "84872",
+          "loans": "38028",
+          "loans_servicing": "45748",
+          "loans_promotions": "80386",
+          "loans_collections": "27906",
+          "loans_new_collections": "25156",
+          "auto_purchase": "12084869778"
+        },
+        "opt_in_key_words": ["START", "OPTIN", "UNSTOP", "YES", "JOIN"],
+        "opt_out_key_words": ["STOP", "OPTOUT", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"],
+        "sms_message_configuration": {
+          "loans-svc-other-keywords": {
+            "message": "OneMain Auto Reply: Thanks for your message. A loan specialist will text you back as soon as they're available, or call 877-550-6246 for help. Reply STOP to stop OneMain texts.",
+            "tm_id": "EVTsmsrealtimeloansvc",
+            "short_codes": ["loans_servicing"],
+            "key_words_expression": [
+              { "real_body": [{ "equals-ignore-case": "HELP" }] }
+            ],
+            "enabled": false
+          },
+          "loans-promotion-other-keywords": {
+            "message": "OneMain Auto Reply: Thanks for your message. A loan specialist will text you back as soon as they're available, or call 877-550-6246 for help. Reply STOP to stop OneMain texts.",
+            "tm_id": "EVTsmsrealtimeloanpromo",
+            "short_codes": ["loans_promotions"],
+            "key_words_expression": [
+              { "real_body": [{ "equals-ignore-case": "HELP" }] }
+            ],
+            "enabled": false
+          },
+          "auto-purchase-other-keywords": {
+            "message": "OneMain Auto Reply: Thanks for your message, but this number is unmonitored. We’re happy to help, just call 1-844-859-5091. Reply STOP to stop OneMain texts.",
+            "tm_id": "EVTsmsrealtimeautopurchase",
+            "short_codes": ["auto_purchase"],
+            "key_words_expression": [
+              { "real_body": [{ "equals-ignore-case": "HELP" }] }
+            ],
+            "enabled": true
+          },
+          "loans-optin-keywords": {
+            "message": "OneMain: You’re signed up for free texts from us. We'll check in soon or visit OMF.com . Msg frequency varies. Reply STOP to stop OneMain texts.",
+            "tm_id": "EVTsmsrealtimeLoanscoll",
+            "short_codes": ["loans"],
+            "key_words_expression": [
+              { "real_body": [{ "equals-ignore-case": "START" }] },
+              { "real_body": [{ "equals-ignore-case": "OPTIN" }] },
+              { "real_body": [{ "equals-ignore-case": "UNSTOP" }] },
+              { "real_body": [{ "equals-ignore-case": "YES" }] },
+              { "real_body": [{ "equals-ignore-case": "JOIN" }] }
+            ],
+            "enabled": false
+          },
+          "loans-svc-optin-keywords": {
+            "message": "OneMain: You’re signed up for texts from us. We’ll check in soon - in the meantime you can visit https://www.omf.com. Msg frequency varies. Data and msg rates apply. Reply STOP to stop OneMain texts.",
+            "tm_id": "EVTsmsrealtimeloansvc",
+            "short_codes": ["loans_servicing"],
+            "key_words_expression": [
+              { "real_body": [{ "equals-ignore-case": "START" }] },
+              { "real_body": [{ "equals-ignore-case": "OPTIN" }] },
+              { "real_body": [{ "equals-ignore-case": "UNSTOP" }] },
+              { "real_body": [{ "equals-ignore-case": "YES" }] },
+              { "real_body": [{ "equals-ignore-case": "JOIN" }] }
+            ],
+            "enabled": false
+          },
+          "loans-promotion-optin-keywords": {
+            "message": "OneMain: You’re signed up for texts from us. We’ll check in soon - in the meantime you can visit https://www.omf.com. Msg frequency varies. Data and msg rates apply. Reply STOP to stop OneMain texts.",
+            "tm_id": "EVTsmsrealtimeloanpromo",
+            "short_codes": ["loans_promotions"],
+            "key_words_expression": [
+              { "real_body": [{ "equals-ignore-case": "START" }] },
+              { "real_body": [{ "equals-ignore-case": "OPTIN" }] },
+              { "real_body": [{ "equals-ignore-case": "UNSTOP" }] },
+              { "real_body": [{ "equals-ignore-case": "YES" }] },
+              { "real_body": [{ "equals-ignore-case": "JOIN" }] }
+            ],
+            "enabled": false
+          },
+          "auto-purchase-optin-keywords": {
+            "message": "OneMain: You are now signed up to receive alerts from us.  We’ll check in soon.  Msg frequency varies.  Reply STOP to stop OneMain texts.",
+            "tm_id": "EVTsmsrealtimeautopurchase",
+            "short_codes": ["auto_purchase"],
+            "key_words_expression": [
+              { "real_body": [{ "equals-ignore-case": "START" }] },
+              { "real_body": [{ "equals-ignore-case": "OPTIN" }] },
+              { "real_body": [{ "equals-ignore-case": "UNSTOP" }] },
+              { "real_body": [{ "equals-ignore-case": "YES" }] },
+              { "real_body": [{ "equals-ignore-case": "JOIN" }] }
+            ],
+            "enabled": true
+          },
+          "loans-optout-keywords": {
+            "message": "OneMain Free MSG: Is this goodbye? You used a keyword or emoji that implies an opt out. Reply JOIN to continue receiving texts. Otherwise, find us @ OMF.com",
+            "tm_id": "EVTsmsrealtimeLoanscoll",
+            "short_codes": ["loans"],
+            "key_words_expression": [
+              { "real_body": [{ "equals-ignore-case": "STOP" }] },
+              { "real_body": [{ "equals-ignore-case": "OPTOUT" }] },
+              { "real_body": [{ "equals-ignore-case": "STOPALL" }] },
+              { "real_body": [{ "equals-ignore-case": "UNSUBSCRIBE" }] },
+              { "real_body": [{ "equals-ignore-case": "CANCEL" }] },
+              { "real_body": [{ "equals-ignore-case": "END" }] },
+              { "real_body": [{ "equals-ignore-case": "QUIT" }] }
+            ],
+            "enabled": false
+          },
+          "loans-svc-optout-keywords": {
+            "message": "OneMain: You used a keyword or emoji that implies an opt out. Reply JOIN to continue receiving texts. Otherwise find us @ https://www.omf.com",
+            "tm_id": "EVTsmsrealtimeloansvc",
+            "short_codes": ["loans_servicing"],
+            "key_words_expression": [
+              { "real_body": [{ "equals-ignore-case": "STOP" }] },
+              { "real_body": [{ "equals-ignore-case": "OPTOUT" }] },
+              { "real_body": [{ "equals-ignore-case": "STOPALL" }] },
+              { "real_body": [{ "equals-ignore-case": "UNSUBSCRIBE" }] },
+              { "real_body": [{ "equals-ignore-case": "CANCEL" }] },
+              { "real_body": [{ "equals-ignore-case": "END" }] },
+              { "real_body": [{ "equals-ignore-case": "QUIT" }] }
+            ],
+            "enabled": false
+          },
+          "loans-promotion-optout-keywords": {
+            "message": "OneMain: You used a keyword or emoji that implies an opt out. Reply JOIN to continue receiving texts. Otherwise find us @ https://www.omf.com",
+            "tm_id": "EVTsmsrealtimeloanpromo",
+            "short_codes": ["loans_promotions"],
+            "key_words_expression": [
+              { "real_body": [{ "equals-ignore-case": "STOP" }] },
+              { "real_body": [{ "equals-ignore-case": "OPTOUT" }] },
+              { "real_body": [{ "equals-ignore-case": "STOPALL" }] },
+              { "real_body": [{ "equals-ignore-case": "UNSUBSCRIBE" }] },
+              { "real_body": [{ "equals-ignore-case": "CANCEL" }] },
+              { "real_body": [{ "equals-ignore-case": "END" }] },
+              { "real_body": [{ "equals-ignore-case": "QUIT" }] }
+            ],
+            "enabled": false
+          },
+          "auto-purchase-optout-keywords": {
+            "message": "OneMain Free MSG: Is this goodbye? You used a keyword or emoji that implies an opt out. Reply JOIN to continue receiving texts. Otherwise, find us @ OMF.com",
+            "tm_id": "EVTsmsrealtimeautopurchase",
+            "short_codes": ["auto_purchase"],
+            "key_words_expression": [
+              { "real_body": [{ "equals-ignore-case": "STOP" }] },
+              { "real_body": [{ "equals-ignore-case": "OPTOUT" }] },
+              { "real_body": [{ "equals-ignore-case": "STOPALL" }] },
+              { "real_body": [{ "equals-ignore-case": "UNSUBSCRIBE" }] },
+              { "real_body": [{ "equals-ignore-case": "CANCEL" }] },
+              { "real_body": [{ "equals-ignore-case": "END" }] },
+              { "real_body": [{ "equals-ignore-case": "QUIT" }] }
+            ],
+            "enabled": true
+          }
+        }
       }
     },
     "@aws-cdk-containers/ecs-service-extensions:enableDefaultLogDriver": true,

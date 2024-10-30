@@ -18,7 +18,7 @@ PROCESSING_TTL = 5 * 60  # 5 minutes
 EVENT_TTL = 30 * 24 * 60 * 60  # 30 days
 
 
-class TestSinchProxyHandler1:
+class TestSinchProxyHandler:
     # Existing tests in TestSinchProxyHandler
 
     @patch('sinch_proxy.main.request_log')
