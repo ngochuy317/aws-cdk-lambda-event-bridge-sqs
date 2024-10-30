@@ -48,6 +48,8 @@ class ExecutionContext:
         self.aws_iam = AwsIamResource(self.base)
         self.aws_role = AwsRoleResource(self.base)
         self.aws_api_gateway = AwsApiGatewayResource(self.base)
+        self.aws_cognito = AwsCognitoResource(self.base)
+        self.aws_sns = AwsSnsResource(self.base)
         self.aws_event_bus = AwsEventBusResource(self.base)
         self.aws_event_rule = AwsEventRuleResource(self.base)
         self.aws_glue = AwsGlueJobResource(self.base)
@@ -269,6 +271,13 @@ class AwsSsmResource(SpecificAwsResource):
                                            parameter_name=self.create_resource_name(parameter_name),
                                            string_value="PLACEHOLDER")
 
+class AwsCognitoResource(SpecificAwsResource):
+    def __init__(self, base_resource):
+        super().__init__("cognito", base_resource)
+
+class AwsSnsResource(SpecificAwsResource):
+    def __init__(self, base_resource):
+        super().__init__("sns", base_resource)
 
 class AwsApiGatewayResource(SpecificAwsResource):
     def __init__(self, base_resource):
