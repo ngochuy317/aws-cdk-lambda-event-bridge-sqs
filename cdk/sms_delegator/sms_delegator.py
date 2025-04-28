@@ -1,6 +1,7 @@
 from aws_cdk import (
     Duration,
     Stack,
+    RemovalPolicy,
     aws_apigateway as apigateway,
     aws_cognito as cognito,
     aws_lambda as _lambda,
@@ -26,7 +27,8 @@ class SMSDelegatorStack(Stack):
                 name="id",
                 type=dynamodb.AttributeType.STRING
             ),
-            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
         )
 
         self.check_message_lambda = _lambda.Function(
