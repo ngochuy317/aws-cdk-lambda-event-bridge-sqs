@@ -2,15 +2,16 @@
 import aws_cdk as cdk
 
 from cdk.common.execution_context import ExecutionContext
+from cdk.sms_delegator.sms_delegator import SMSDelegatorStack
 
 
 app = cdk.App()
 
 # read environment specific properties
 execution_context = ExecutionContext(app)
-sinch_sms_response_event = SinchSmsResponseEvent(
+sms_delegator_stack = SMSDelegatorStack(
     app,
-    "SinchSmsResponseEvent",
+    "SMSDelegatorStack",
     execution_context=execution_context,
     env=execution_context.target_environment,
 )
